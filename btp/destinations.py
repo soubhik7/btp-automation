@@ -81,12 +81,16 @@ class DestinationService:
     def _auto_detect_binding(self) -> str:
         bindings = cli.list_service_bindings(self._sa)
         for b in bindings:
-            if "destination" in b.get("name", "").lower():
+            name = b.get("name", "").lower()
+            instance_name = b.get("context", {}).get("instance_name", "").lower()
+            if "destination" in name or "dest" in name:
+                return b["name"]
+            if "destination" in instance_name or instance_name.startswith("dest"):
                 return b["name"]
         raise BTPError(
             "No destination service binding found in this subaccount.\n"
             "Create one first:\n"
-            "  btp-auto services create-binding"
+            "  btp-auto services create-binding --binding <name> --instance <destination-instance>"
         )
 
     def _headers(self) -> Dict:

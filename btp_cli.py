@@ -1299,14 +1299,13 @@ def _launch_interactive():
                     section("Global Entitlements")
                     out.print_table(ent_svc.list_assignments(), columns=["name", "displayName"])
                 elif choice == "2":
-                    guid = ask_with_default("Subaccount GUID", _sa_default)
-                    data = ent_svc.list_assignments(subaccount_guid=guid)
+                    data = ent_svc.list_assignments(subaccount_guid=_sa_default)
                     cols = (
                         ["service", "plan", "quota"]
                         if data and "service" in data[0]
                         else ["name", "displayName"]
                     )
-                    section(f"Entitlements for {guid[:8]}…")
+                    section(f"Entitlements for {_sa_default[:8]}…")
                     out.print_table(data, columns=cols)
                 elif choice == "3":
                     guid    = ask_with_default("Subaccount GUID", _sa_default)
@@ -1351,17 +1350,15 @@ def _launch_interactive():
             choice = menu("Provisioning / Environments", items)
             try:
                 if choice == "1":
-                    guid = ask_with_default("Subaccount GUID", _sa_default)
                     section("Available Environments")
                     out.print_table(
-                        prov_svc.list_available_environments(guid),
+                        prov_svc.list_available_environments(_sa_default),
                         columns=["environmentType", "planName", "displayName"],
                     )
                 elif choice == "2":
-                    guid = ask_with_default("Subaccount GUID", _sa_default)
                     section("Environment Instances")
                     out.print_table(
-                        prov_svc.list_environment_instances(guid),
+                        prov_svc.list_environment_instances(_sa_default),
                         columns=["environmentInstanceID", "environmentType", "name", "state"],
                     )
                 elif choice == "3":
@@ -1530,7 +1527,7 @@ def _launch_interactive():
                 elif choice == "2":
                     offering = ask_optional("Filter by offering name (blank = all)")
                     out.print_table(services_svc.list_plans(offering or None),
-                                    columns=["name", "displayName", "serviceOfferingName", "free"])
+                                    columns=["name", "service_offering_name", "free", "ready"])
                 elif choice == "3":
                     section("Service Instances")
                     out.print_table(services_svc.list_instances(),
@@ -1723,6 +1720,8 @@ def _launch_interactive():
         }
         while True:
             choice = menu("Destinations", items)
+            if choice == "0":
+                break
             try:
                 dest_svc = get_dest_svc()
                 if choice == "1":
@@ -1751,8 +1750,8 @@ def _launch_interactive():
                     name      = ask("Destination name")
                     url       = ask("Target URL")
                     client_id = ask("Client ID")
-                    client_sec = ask("Client secret")
                     token_url  = ask("Token URL")
+                    client_sec = ask("Client secret")
                     if name and url and client_id and client_sec and token_url:
                         cfg = DS.oauth_destination(name, url, client_id, client_sec, token_url)
                         dest_svc.create(cfg)
@@ -1762,8 +1761,6 @@ def _launch_interactive():
                     if name and confirm(f"Delete destination '{name}'?"):
                         dest_svc.delete(name)
                         out.success(f"Destination '{name}' deleted")
-                elif choice == "0":
-                    break
             except BTPError as e:
                 out.error(str(e))
             except KeyboardInterrupt:
@@ -1784,6 +1781,8 @@ def _launch_interactive():
         }
         while True:
             choice = menu("SAP Integration Suite", items)
+            if choice == "0":
+                break
             try:
                 is_svc = get_is_svc()
                 if choice == "1":
@@ -1823,8 +1822,6 @@ def _launch_interactive():
                         is_svc.get_failed_messages(int(top)),
                         columns=["MessageGuid", "Status", "LogStart", "Sender", "Receiver"],
                     )
-                elif choice == "0":
-                    break
             except BTPError as e:
                 out.error(str(e))
             except KeyboardInterrupt:
