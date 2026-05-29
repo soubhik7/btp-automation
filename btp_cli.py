@@ -17,8 +17,11 @@ Command groups:
     interactive   Launch the interactive TUI explicitly
 """
 import json
+import os
 import sys
+import textwrap
 import click
+from pathlib import Path
 
 from btp.config import BTPConfig
 from btp.client import BTPClient
@@ -1580,6 +1583,165 @@ def _launch_interactive():
 
     # ── CLOUD FOUNDRY submenu ─────────────────────────────────────────────────
 
+    def _scaffold_app() -> str | None:
+        """Interactively scaffold a new CF app and return its directory path."""
+        runtime_menu = {
+            "1": "Python (Flask + gunicorn)",
+            "2": "Node.js (Express)",
+            "3": "Static HTML5 (Staticfile buildpack)",
+            "0": "Cancel",
+        }
+        rt = menu("Choose Runtime", runtime_menu)
+        if rt == "0":
+            return None
+
+        name    = ask("App name (used as CF app name)")
+        memory  = ask_with_default("Memory limit", "256M")
+        inst    = ask_with_default("Instances", "1")
+        desc    = ask_optional("Short description")
+
+        if not name:
+            out.error("App name is required")
+            return None
+
+        app_dir = Path(".") / "apps" / name
+        app_dir.mkdir(parents=True, exist_ok=True)
+
+        # ── manifest.yml (common structure) ──────────────────────────────────
+        def write(filename: str, content: str):
+            (app_dir / filename).write_text(textwrap.dedent(content).lstrip())
+
+        # ── Python Flask ──────────────────────────────────────────────────────
+        if rt == "1":
+            write("app.py", f"""\
+                from flask import Flask, jsonify
+                import os
+
+                app = Flask(__name__)
+
+                @app.route('/')
+                def index():
+                    return jsonify({{
+                        "app":    "{name}",
+                        "status": "running",
+                        "env":    os.environ.get("APP_ENV", "production"),
+                    }})
+
+                @app.route('/health')
+                def health():
+                    return jsonify({{"status": "ok"}}), 200
+
+                if __name__ == '__main__':
+                    port = int(os.environ.get('PORT', 8080))
+                    app.run(host='0.0.0.0', port=port)
+            """)
+            write("requirements.txt", """\
+                flask>=3.0.0
+                gunicorn>=21.0.0
+            """)
+            write("Procfile", "web: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2\n")
+            buildpack  = "python_buildpack"
+            start_cmd  = "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2"
+
+        # ── Node.js Express ───────────────────────────────────────────────────
+        elif rt == "2":
+            write("app.js", f"""\
+                'use strict';
+                const express = require('express');
+                const app     = express();
+                const port    = process.env.PORT || 8080;
+
+                app.get('/', (req, res) => {{
+                    res.json({{
+                        app:    '{name}',
+                        status: 'running',
+                        env:    process.env.APP_ENV || 'production',
+                    }});
+                }});
+
+                app.get('/health', (req, res) => {{
+                    res.json({{ status: 'ok' }});
+                }});
+
+                app.listen(port, () => {{
+                    console.log(`{name} listening on port ${{port}}`);
+                }});
+            """)
+            pkg = {
+                "name": name,
+                "version": "1.0.0",
+                "description": desc or f"SAP BTP CF app: {name}",
+                "main": "app.js",
+                "scripts": {"start": "node app.js"},
+                "dependencies": {"express": "^4.18.0"},
+                "engines": {"node": ">=18.0.0"},
+            }
+            write("package.json", json.dumps(pkg, indent=2) + "\n")
+            buildpack  = "nodejs_buildpack"
+            start_cmd  = "npm start"
+
+        # ── Static HTML5 ──────────────────────────────────────────────────────
+        elif rt == "3":
+            write("index.html", f"""\
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>{name}</title>
+                    <style>
+                        body {{ font-family: '72', Arial, sans-serif; background: #f5f5f5;
+                               display: flex; align-items: center; justify-content: center;
+                               min-height: 100vh; margin: 0; }}
+                        .card {{ background: white; border-radius: 8px; padding: 2rem 3rem;
+                                box-shadow: 0 2px 12px rgba(0,0,0,.1); text-align: center; }}
+                        h1 {{ color: #0070f2; }}
+                        p  {{ color: #6a6d70; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <h1>{name}</h1>
+                        <p>{desc or "Running on SAP BTP Cloud Foundry"}</p>
+                        <p><small>Deployed with btp-auto</small></p>
+                    </div>
+                </body>
+                </html>
+            """)
+            write("Staticfile", "")   # presence triggers staticfile buildpack
+            buildpack  = "staticfile_buildpack"
+            start_cmd  = None
+
+        # ── manifest.yml ─────────────────────────────────────────────────────
+        manifest_lines = [
+            "applications:",
+            f"- name: {name}",
+            f"  memory: {memory}",
+            f"  instances: {inst}",
+            "  buildpacks:",
+            f"  - {buildpack}",
+        ]
+        if start_cmd:
+            manifest_lines.append(f"  command: {start_cmd}")
+        if desc:
+            manifest_lines.append(f"  metadata:")
+            manifest_lines.append(f"    annotations:")
+            manifest_lines.append(f"      description: \"{desc}\"")
+        manifest_lines += [
+            "  env:",
+            f"    APP_NAME: {name}",
+            "    APP_ENV: production",
+            "",
+        ]
+        (app_dir / "manifest.yml").write_text("\n".join(manifest_lines))
+
+        # ── report ────────────────────────────────────────────────────────────
+        section(f"App scaffolded → {app_dir}")
+        files = [f.name for f in sorted(app_dir.iterdir())]
+        console.print(f"    [green]{'  '.join(files)}[/green]")
+        out.success(f"Directory: {app_dir.resolve()}")
+        return str(app_dir)
+
     def menu_cf():
         items = {
             "1":  "Show CF Target",
@@ -1588,20 +1750,21 @@ def _launch_interactive():
             "4":  "Delete Space",
             "5":  "── Apps ──",
             "6":  "List Apps",
-            "7":  "Push App",
-            "8":  "Delete App",
-            "9":  "Start / Stop / Restage App",
-            "10": "Recent App Logs",
-            "11": "App Environment Variables",
-            "12": "Set Environment Variable",
-            "13": "── CF Services ──",
-            "14": "List CF Services",
-            "15": "Create CF Service Instance",
-            "16": "Delete CF Service Instance",
-            "17": "Bind Service to App",
-            "18": "Unbind Service from App",
-            "19": "Create Service Key",
-            "20": "Get Service Key (credentials)",
+            "7":  "Scaffold & Create New App",
+            "8":  "Push Existing App",
+            "9":  "Delete App",
+            "10": "Start / Stop / Restage App",
+            "11": "Recent App Logs",
+            "12": "App Environment Variables",
+            "13": "Set Environment Variable",
+            "14": "── CF Services ──",
+            "15": "List CF Services",
+            "16": "Create CF Service Instance",
+            "17": "Delete CF Service Instance",
+            "18": "Bind Service to App",
+            "19": "Unbind Service from App",
+            "20": "Create Service Key",
+            "21": "Get Service Key (credentials)",
             "0":  "Back",
         }
         while True:
@@ -1622,22 +1785,27 @@ def _launch_interactive():
                     if name and confirm(f"Delete space '{name}'?"):
                         cf_cli.delete_space(name)
                         out.success(f"Space '{name}' deleted")
-                elif choice in ("5", "13"):
+                elif choice in ("5", "14"):
                     pass  # section headers
                 elif choice == "6":
                     out.info(cf_cli.list_apps())
                 elif choice == "7":
+                    app_path = _scaffold_app()
+                    if app_path and confirm("Push the app to CF now?"):
+                        app_name = Path(app_path).name
+                        out.info(cf_cli.push_app(app_name, app_path, no_start=False))
+                elif choice == "8":
                     name = ask("App name")
                     path = ask_with_default("App directory path", ".")
                     no_start = confirm("Push without starting?")
                     if name:
                         out.info(cf_cli.push_app(name, path, no_start))
-                elif choice == "8":
+                elif choice == "9":
                     name = ask("App name")
                     if name and confirm(f"Delete app '{name}' and its routes?"):
                         cf_cli.delete_app(name)
                         out.success(f"App '{name}' deleted")
-                elif choice == "9":
+                elif choice == "10":
                     name = ask("App name")
                     action = menu("App Action", {"1": "Start", "2": "Stop", "3": "Restage", "0": "Cancel"})
                     if name:
@@ -1647,24 +1815,24 @@ def _launch_interactive():
                             out.info(cf_cli.stop_app(name))
                         elif action == "3":
                             out.info(cf_cli.restage_app(name))
-                elif choice == "10":
-                    name = ask("App name")
-                    if name:
-                        out.info(cf_cli.recent_logs(name))
                 elif choice == "11":
                     name = ask("App name")
                     if name:
-                        out.info(cf_cli.get_env(name))
+                        out.info(cf_cli.recent_logs(name))
                 elif choice == "12":
+                    name = ask("App name")
+                    if name:
+                        out.info(cf_cli.get_env(name))
+                elif choice == "13":
                     name  = ask("App name")
                     key   = ask("Variable name")
                     value = ask("Variable value")
                     if name and key and value:
                         cf_cli.set_env(name, key, value)
                         out.success(f"Set {key} on {name}")
-                elif choice == "14":
-                    out.info(cf_cli.list_services())
                 elif choice == "15":
+                    out.info(cf_cli.list_services())
+                elif choice == "16":
                     service = ask("Service offering (e.g. destination)")
                     plan    = ask("Plan (e.g. lite)")
                     name    = ask("Instance name")
@@ -1672,30 +1840,30 @@ def _launch_interactive():
                     if service and plan and name:
                         out.info(cf_cli.create_service(service, plan, name, params or None))
                         out.success(f"CF service '{name}' created")
-                elif choice == "16":
+                elif choice == "17":
                     name = ask("CF service instance name")
                     if name and confirm(f"Delete CF service '{name}'?"):
                         cf_cli.delete_service(name)
                         out.success("Deleted")
-                elif choice == "17":
+                elif choice == "18":
                     app     = ask("App name")
                     service = ask("Service instance name")
                     if app and service:
                         out.info(cf_cli.bind_service(app, service))
                         out.success(f"Bound '{service}' to '{app}'")
-                elif choice == "18":
+                elif choice == "19":
                     app     = ask("App name")
                     service = ask("Service instance name")
                     if app and service:
                         out.info(cf_cli.unbind_service(app, service))
                         out.success("Unbound")
-                elif choice == "19":
+                elif choice == "20":
                     service  = ask("CF service instance name")
                     key_name = ask("Key name")
                     if service and key_name:
                         out.info(cf_cli.create_service_key(service, key_name))
                         out.success(f"Key '{key_name}' created")
-                elif choice == "20":
+                elif choice == "21":
                     service  = ask("CF service instance name")
                     key_name = ask("Key name")
                     if service and key_name:

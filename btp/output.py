@@ -6,9 +6,11 @@ try:
     from rich.console import Console
     from rich.table import Table
     from rich import print as rprint
+    from rich.markup import escape as _escape
     _RICH = True
 except ImportError:
     _RICH = False
+    def _escape(s): return s
 
 try:
     import yaml as _yaml
@@ -55,27 +57,27 @@ def print_yaml(data: Any):
 
 def success(msg: str):
     if _RICH:
-        console.print(f"[green]✓[/green] {msg}")
+        console.print(f"[green]✓[/green] {_escape(str(msg))}")
     else:
         print(f"[OK] {msg}")
 
 
 def error(msg: str):
     if _RICH:
-        console.print(f"[red]✗[/red] {msg}")
+        console.print(f"[red]✗[/red] {_escape(str(msg))}")
     else:
         print(f"[ERROR] {msg}")
 
 
 def info(msg: str):
     if _RICH:
-        console.print(f"[blue]ℹ[/blue] {msg}")
+        console.print(f"[blue]ℹ[/blue] {_escape(str(msg))}")
     else:
         print(f"[INFO] {msg}")
 
 
 def warn(msg: str):
     if _RICH:
-        console.print(f"[yellow]⚠[/yellow] {msg}")
+        console.print(f"[yellow]⚠[/yellow] {_escape(str(msg))}")
     else:
         print(f"[WARN] {msg}")
