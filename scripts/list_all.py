@@ -111,7 +111,7 @@ def main():
         try:
             instances = services.list_instances(guid)
             out.print_table(instances, title="Service Instances",
-                            columns=["name", "serviceOfferingName", "servicePlanName", "usable"])
+                            columns=["name", "service_plan_id", "usable", "ready"])
         except BTPError as e:
             out.error(f"Service instances: {e}")
 

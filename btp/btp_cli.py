@@ -407,3 +407,72 @@ def list_service_plans(subaccount_guid: str, offering_name: str = None) -> List[
     if offering_name:
         items = [p for p in items if p.get("service_offering_name", "").lower() == offering_name.lower()]
     return items
+
+
+def create_service_instance(
+    subaccount_guid: str,
+    name: str,
+    offering_name: str,
+    plan_name: str,
+    parameters: str = None,
+) -> Dict:
+    args = [
+        "create", "services/instance",
+        "--subaccount", subaccount_guid,
+        "--name", name,
+        "--offering-name", offering_name,
+        "--plan-name", plan_name,
+    ]
+    if parameters:
+        args += ["--parameters", parameters]
+    return _run(args)
+
+
+def delete_service_instance(subaccount_guid: str, name: str) -> None:
+    _run([
+        "delete", "services/instance",
+        "--subaccount", subaccount_guid,
+        "--name", name,
+        "--confirm",
+    ])
+
+
+# ── Services: Binding lifecycle ───────────────────────────────────────────────
+
+def list_service_bindings(subaccount_guid: str) -> List[Dict]:
+    result = _run(["list", "services/binding", "--subaccount", subaccount_guid])
+    return result if isinstance(result, list) else result.get("items", result.get("value", []))
+
+
+def create_service_binding(
+    subaccount_guid: str,
+    binding_name: str,
+    instance_name: str,
+    parameters: str = None,
+) -> Dict:
+    args = [
+        "create", "services/binding",
+        "--subaccount", subaccount_guid,
+        "--binding", binding_name,
+        "--instance-name", instance_name,
+    ]
+    if parameters:
+        args += ["--parameters", parameters]
+    return _run(args)
+
+
+def get_service_binding(subaccount_guid: str, binding_name: str) -> Dict:
+    return _run([
+        "get", "services/binding",
+        "--subaccount", subaccount_guid,
+        "--name", binding_name,
+    ])
+
+
+def delete_service_binding(subaccount_guid: str, binding_name: str) -> None:
+    _run([
+        "delete", "services/binding",
+        "--subaccount", subaccount_guid,
+        "--name", binding_name,
+        "--confirm",
+    ])
