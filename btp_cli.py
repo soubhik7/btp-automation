@@ -22,22 +22,13 @@ from btp.accounts import AccountsService
 from btp.entitlements import EntitlementsService
 from btp.provisioning import ProvisioningService
 from btp.authorization import AuthorizationService
+from btp.services import ServicesService
 from btp.exceptions import BTPError
 import btp.output as out
 
 
 def _client() -> BTPClient:
     return BTPClient(BTPConfig())
-
-
-def _services():
-    c = _client()
-    return (
-        AccountsService(c),
-        EntitlementsService(c),
-        ProvisioningService(c),
-        AuthorizationService(c),
-    )
 
 
 # ── Root group ────────────────────────────────────────────────────────────────
@@ -361,15 +352,15 @@ def delete_env(ctx, subaccount, instance_id):
 
 @cli.group()
 def auth():
-    """XSUAA roles, role collections, and user assignments."""
+    """Security: roles, role collections, users."""
 
 
 @auth.command("list-apps")
 @click.pass_context
 def list_apps(ctx):
-    """List XSUAA application registrations."""
+    """List registered XSUAA applications in the subaccount."""
     try:
-        svc = AuthorizationService(_client())
+        svc = AuthorizationService()
         data = svc.list_applications()
         _print(data, ctx.obj["fmt"], "Applications",
                columns=["appId", "appName", "description"])
@@ -378,27 +369,12 @@ def list_apps(ctx):
         sys.exit(1)
 
 
-@auth.command("list-role-templates")
-@click.option("--app-id", default=None)
-@click.pass_context
-def list_role_templates(ctx, app_id):
-    """List role templates."""
-    try:
-        svc = AuthorizationService(_client())
-        data = svc.list_role_templates(app_id)
-        _print(data, ctx.obj["fmt"], "Role Templates",
-               columns=["name", "appId", "description"])
-    except BTPError as e:
-        out.error(str(e))
-        sys.exit(1)
-
-
 @auth.command("list-roles")
 @click.pass_context
 def list_roles(ctx):
-    """List all roles."""
+    """List all roles in the subaccount."""
     try:
-        svc = AuthorizationService(_client())
+        svc = AuthorizationService()
         data = svc.list_roles()
         _print(data, ctx.obj["fmt"], "Roles",
                columns=["name", "roleTemplateName", "roleTemplateAppId", "description"])
@@ -410,13 +386,13 @@ def list_roles(ctx):
 @auth.command("create-role")
 @click.option("--name", required=True)
 @click.option("--template", required=True, help="Role template name")
-@click.option("--app-id", required=True, help="Application ID")
+@click.option("--app-id", required=True, help="Application ID (e.g. myapp!t123)")
 @click.option("--description", default="")
 @click.pass_context
 def create_role(ctx, name, template, app_id, description):
     """Create a role from a template."""
     try:
-        svc = AuthorizationService(_client())
+        svc = AuthorizationService()
         data = svc.create_role(name, template, app_id, description)
         out.success(f"Role '{name}' created")
         _print(data, ctx.obj["fmt"])
@@ -426,16 +402,16 @@ def create_role(ctx, name, template, app_id, description):
 
 
 @auth.command("delete-role")
-@click.option("--template", required=True)
-@click.option("--app-id", required=True)
-@click.option("--name", required=True)
+@click.option("--name", required=True, help="Role name")
+@click.option("--template", required=True, help="Role template name")
+@click.option("--app-id", required=True, help="Application ID")
 @click.confirmation_option(prompt="Delete this role?")
 @click.pass_context
-def delete_role(ctx, template, app_id, name):
+def delete_role(ctx, name, template, app_id):
     """Delete a role."""
     try:
-        svc = AuthorizationService(_client())
-        svc.delete_role(template, app_id, name)
+        svc = AuthorizationService()
+        svc.delete_role(name, template, app_id)
         out.success(f"Role '{name}' deleted")
     except BTPError as e:
         out.error(str(e))
@@ -447,10 +423,10 @@ def delete_role(ctx, template, app_id, name):
 def list_role_collections(ctx):
     """List all role collections."""
     try:
-        svc = AuthorizationService(_client())
+        svc = AuthorizationService()
         data = svc.list_role_collections()
         _print(data, ctx.obj["fmt"], "Role Collections",
-               columns=["name", "description"])
+               columns=["name", "description", "isReadOnly"])
     except BTPError as e:
         out.error(str(e))
         sys.exit(1)
@@ -462,7 +438,7 @@ def list_role_collections(ctx):
 def get_role_collection(ctx, name):
     """Get a role collection by name."""
     try:
-        svc = AuthorizationService(_client())
+        svc = AuthorizationService()
         _print(svc.get_role_collection(name), ctx.obj["fmt"])
     except BTPError as e:
         out.error(str(e))
@@ -476,7 +452,7 @@ def get_role_collection(ctx, name):
 def create_role_collection(ctx, name, description):
     """Create a new role collection."""
     try:
-        svc = AuthorizationService(_client())
+        svc = AuthorizationService()
         data = svc.create_role_collection(name, description)
         out.success(f"Role collection '{name}' created")
         _print(data, ctx.obj["fmt"])
@@ -492,7 +468,7 @@ def create_role_collection(ctx, name, description):
 def delete_role_collection(ctx, name):
     """Delete a role collection."""
     try:
-        svc = AuthorizationService(_client())
+        svc = AuthorizationService()
         svc.delete_role_collection(name)
         out.success(f"Role collection '{name}' deleted")
     except BTPError as e:
@@ -501,15 +477,15 @@ def delete_role_collection(ctx, name):
 
 
 @auth.command("add-role-to-collection")
-@click.option("--collection", required=True)
-@click.option("--role-name", required=True)
-@click.option("--template", required=True)
-@click.option("--app-id", required=True)
+@click.option("--collection", required=True, help="Role collection name")
+@click.option("--role-name", required=True, help="Role name")
+@click.option("--template", required=True, help="Role template name")
+@click.option("--app-id", required=True, help="Application ID")
 @click.pass_context
 def add_role_to_collection(ctx, collection, role_name, template, app_id):
     """Add a role to a role collection."""
     try:
-        svc = AuthorizationService(_client())
+        svc = AuthorizationService()
         svc.add_role_to_collection(collection, role_name, template, app_id)
         out.success(f"Role '{role_name}' added to '{collection}'")
     except BTPError as e:
@@ -517,17 +493,105 @@ def add_role_to_collection(ctx, collection, role_name, template, app_id):
         sys.exit(1)
 
 
+@auth.command("list-users")
+@click.pass_context
+def list_users(ctx):
+    """List all users in the subaccount."""
+    try:
+        svc = AuthorizationService()
+        data = svc.list_users()
+        if isinstance(data, list) and data and isinstance(data[0], str):
+            _print([{"email": u} for u in data], ctx.obj["fmt"], "Users", columns=["email"])
+        else:
+            _print(data, ctx.obj["fmt"], "Users", columns=["id", "userName"])
+    except BTPError as e:
+        out.error(str(e))
+        sys.exit(1)
+
+
 @auth.command("assign-user")
-@click.option("--collection", required=True)
-@click.option("--user", required=True, help="Username / email")
-@click.option("--origin", default="sap.default")
+@click.option("--collection", required=True, help="Role collection name")
+@click.option("--user", required=True, help="User email")
+@click.option("--origin", default="sap.default", help="IDP origin (default: sap.default)")
 @click.pass_context
 def assign_user(ctx, collection, user, origin):
     """Assign a user to a role collection."""
     try:
-        svc = AuthorizationService(_client())
+        svc = AuthorizationService()
         svc.assign_user_to_collection(collection, user, origin)
         out.success(f"User '{user}' assigned to role collection '{collection}'")
+    except BTPError as e:
+        out.error(str(e))
+        sys.exit(1)
+
+
+@auth.command("unassign-user")
+@click.option("--collection", required=True, help="Role collection name")
+@click.option("--user", required=True, help="User email")
+@click.option("--origin", default="sap.default")
+@click.confirmation_option(prompt="Remove user from this role collection?")
+@click.pass_context
+def unassign_user(ctx, collection, user, origin):
+    """Remove a user from a role collection."""
+    try:
+        svc = AuthorizationService()
+        svc.remove_user_from_collection(collection, user, origin)
+        out.success(f"User '{user}' removed from '{collection}'")
+    except BTPError as e:
+        out.error(str(e))
+        sys.exit(1)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SERVICES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@cli.group()
+def services():
+    """CF service marketplace: offerings, plans, and instances."""
+
+
+@services.command("list-offerings")
+@click.pass_context
+def list_offerings(ctx):
+    """List available service offerings."""
+    try:
+        from btp.services import ServicesService
+        svc = ServicesService()
+        data = svc.list_offerings()
+        _print(data, ctx.obj["fmt"], "Service Offerings",
+               columns=["name", "displayName", "description"])
+    except BTPError as e:
+        out.error(str(e))
+        sys.exit(1)
+
+
+@services.command("list-plans")
+@click.option("--offering", default=None, help="Filter by service offering name")
+@click.pass_context
+def list_plans(ctx, offering):
+    """List service plans."""
+    try:
+        from btp.services import ServicesService
+        svc = ServicesService()
+        data = svc.list_plans(offering)
+        _print(data, ctx.obj["fmt"], "Service Plans",
+               columns=["name", "displayName", "serviceOfferingName", "free"])
+    except BTPError as e:
+        out.error(str(e))
+        sys.exit(1)
+
+
+@services.command("list-instances")
+@click.pass_context
+def list_instances(ctx):
+    """List provisioned service instances."""
+    try:
+        from btp.services import ServicesService
+        svc = ServicesService()
+        data = svc.list_instances()
+        _print(data, ctx.obj["fmt"], "Service Instances",
+               columns=["name", "serviceOfferingName", "servicePlanName", "usable"])
     except BTPError as e:
         out.error(str(e))
         sys.exit(1)
@@ -548,12 +612,11 @@ def interactive_mode():
         print("Install 'rich' for interactive mode: pip install rich")
         sys.exit(1)
 
-    cfg = BTPConfig()
-    client = BTPClient(cfg)
-    accounts_svc = AccountsService(client)
-    entitlements_svc = EntitlementsService(client)
-    provisioning_svc = ProvisioningService(client)
-    auth_svc = AuthorizationService(client)
+    accounts_svc = AccountsService()
+    entitlements_svc = EntitlementsService()
+    provisioning_svc = ProvisioningService()
+    auth_svc = AuthorizationService()
+    services_svc = ServicesService()
 
     MENU = {
         "1": ("List Subaccounts", lambda: out.print_table(

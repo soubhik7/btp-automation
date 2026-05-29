@@ -1,26 +1,23 @@
 #!/usr/bin/env python3
-"""Show a full snapshot of your BTP account: global account, subaccounts, entitlements, environments, roles."""
+"""Show a full snapshot of your BTP account: global account, subaccounts, entitlements, environments, security, services."""
 import sys
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).parent.parent))
 
-from btp.config import BTPConfig
-from btp.client import BTPClient
 from btp.accounts import AccountsService
 from btp.entitlements import EntitlementsService
 from btp.provisioning import ProvisioningService
 from btp.authorization import AuthorizationService
+from btp.services import ServicesService
 from btp.exceptions import BTPError
 import btp.output as out
 
 
 def main():
-    cfg = BTPConfig()
-    client = BTPClient(cfg)
-
-    accounts = AccountsService(client)
-    entitlements = EntitlementsService(client)
-    provisioning = ProvisioningService(client)
-    auth = AuthorizationService(client)
+    accounts = AccountsService()
+    entitlements = EntitlementsService()
+    provisioning = ProvisioningService()
+    auth = AuthorizationService()
+    services = ServicesService()
 
     # ── Global Account ────────────────────────────────────────────────────────
     out.info("Fetching Global Account...")
@@ -70,30 +67,53 @@ def main():
         out.error(f"Data centers: {e}")
 
     # ── Environments per subaccount ───────────────────────────────────────────
-    for guid in subaccount_guids[:3]:  # limit to first 3 to avoid rate limits
+    for guid in subaccount_guids[:3]:
         out.info(f"\nEnvironment instances in subaccount {guid}...")
         try:
             envs = provisioning.list_environment_instances(guid)
-            out.print_table(envs, title=f"Environments ({guid})",
-                            columns=["environmentInstanceID", "environmentType", "name", "state"])
+            out.print_table(envs, title=f"Environments ({guid[:8]}...)",
+                            columns=["id", "environmentType", "name", "state"])
         except BTPError as e:
             out.error(f"  Environments: {e}")
 
-    # ── XSUAA Authorization ───────────────────────────────────────────────────
-    out.info("\nFetching Role Collections...")
-    try:
-        rcs = auth.list_role_collections()
-        out.print_table(rcs, title="Role Collections", columns=["name", "description"])
-    except BTPError as e:
-        out.error(f"Role collections: {e}")
+    # ── Security: Role Collections ────────────────────────────────────────────
+    for guid in subaccount_guids[:1]:
+        out.info(f"\nFetching Role Collections for subaccount {guid[:8]}...")
+        try:
+            rcs = auth.list_role_collections(guid)
+            out.print_table(rcs, title="Role Collections",
+                            columns=["name", "description", "isReadOnly"])
+        except BTPError as e:
+            out.error(f"Role collections: {e}")
 
-    out.info("\nFetching Roles...")
-    try:
-        roles = auth.list_roles()
-        out.print_table(roles, title="Roles",
-                        columns=["name", "roleTemplateName", "description"])
-    except BTPError as e:
-        out.error(f"Roles: {e}")
+        # ── Security: Users ───────────────────────────────────────────────────
+        out.info("\nFetching Users...")
+        try:
+            users = auth.list_users(guid)
+            if isinstance(users, list) and users and isinstance(users[0], str):
+                out.print_table([{"email": u} for u in users],
+                                title="Users", columns=["email"])
+            else:
+                out.print_table(users, title="Users", columns=["id", "userName"])
+        except BTPError as e:
+            out.error(f"Users: {e}")
+
+        # ── Services ──────────────────────────────────────────────────────────
+        out.info("\nFetching Service Offerings...")
+        try:
+            offerings = services.list_offerings(guid)
+            out.print_table(offerings, title="Service Offerings",
+                            columns=["name", "displayName", "description"])
+        except BTPError as e:
+            out.error(f"Service offerings: {e}")
+
+        out.info("\nFetching Service Instances...")
+        try:
+            instances = services.list_instances(guid)
+            out.print_table(instances, title="Service Instances",
+                            columns=["name", "serviceOfferingName", "servicePlanName", "usable"])
+        except BTPError as e:
+            out.error(f"Service instances: {e}")
 
     out.success("\nSnapshot complete.")
 

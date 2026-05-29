@@ -6,7 +6,6 @@ Requires one-time interactive login:
 """
 import json
 import subprocess
-import sys
 from typing import Any, Dict, List, Optional
 
 from .exceptions import BTPError, BTPNotFoundError, BTPAuthError
@@ -48,14 +47,13 @@ def _run(args: List[str], input_text: str = None) -> Any:
     try:
         return json.loads(output)
     except json.JSONDecodeError:
-        # Some btp commands return plain text on success
         return {"message": output}
 
 
 def check_login() -> bool:
     """Return True if the BTP CLI has a valid session."""
     try:
-        _run(["list", "accounts/global-account"])
+        _run(["get", "accounts/global-account"])
         return True
     except (BTPAuthError, BTPError):
         return False
@@ -64,16 +62,16 @@ def check_login() -> bool:
 # ── Global Account ─────────────────────────────────────────────────────────────
 
 def get_global_account() -> Dict:
-    return _run(["list", "accounts/global-account"])
+    return _run(["get", "accounts/global-account"])
 
 
 # ── Subaccounts ────────────────────────────────────────────────────────────────
 
 def list_subaccounts() -> List[Dict]:
-    result = _run(["list", "accounts/subaccounts"])
+    result = _run(["list", "accounts/subaccount"])
     if isinstance(result, list):
         return result
-    return result.get("value", result.get("subaccounts", []))
+    return result.get("value", [])
 
 
 def get_subaccount(guid: str) -> Dict:
@@ -120,10 +118,14 @@ def delete_subaccount(guid: str) -> None:
 
 
 # ── Directories ────────────────────────────────────────────────────────────────
+# BTP CLI has no `list accounts/directory` command.
+# Directories are retrieved from the global account hierarchy.
 
 def list_directories() -> List[Dict]:
-    result = _run(["list", "accounts/directories"])
-    return result if isinstance(result, list) else result.get("value", [])
+    result = _run(["get", "accounts/global-account", "--show-hierarchy"])
+    # hierarchy includes 'children' which may contain directories
+    children = result.get("children", [])
+    return [c for c in children if c.get("entityType") == "DIRECTORY" or c.get("parentType") == "DIRECTORY"]
 
 
 def get_directory(guid: str) -> Dict:
@@ -157,11 +159,15 @@ def delete_directory(guid: str) -> None:
 # ── Entitlements ────────────────────────────────────────────────────────────────
 
 def list_entitlements(subaccount_guid: str = None) -> List[Dict]:
-    args = ["list", "accounts/entitlements"]
+    args = ["list", "accounts/entitlement"]
     if subaccount_guid:
         args += ["--subaccount", subaccount_guid]
+        result = _run(args)
+        # Subaccount-scoped response uses 'quotas' key
+        return result if isinstance(result, list) else result.get("quotas", [])
     result = _run(args)
-    return result if isinstance(result, list) else result.get("entitledServices", result.get("value", [result]))
+    # Global response uses 'entitledServices' key
+    return result if isinstance(result, list) else result.get("entitledServices", [])
 
 
 def assign_entitlement(
@@ -197,8 +203,8 @@ def unassign_entitlement(subaccount_guid: str, service_name: str, plan_name: str
 # ── Environment Instances ─────────────────────────────────────────────────────
 
 def list_environment_instances(subaccount_guid: str) -> List[Dict]:
-    result = _run(["list", "accounts/environment-instances", "--subaccount", subaccount_guid])
-    return result if isinstance(result, list) else result.get("value", [])
+    result = _run(["list", "accounts/environment-instance", "--subaccount", subaccount_guid])
+    return result if isinstance(result, list) else result.get("environmentInstances", result.get("value", []))
 
 
 def get_environment_instance(subaccount_guid: str, instance_id: str) -> Dict:
@@ -238,10 +244,175 @@ def delete_environment_instance(subaccount_guid: str, instance_id: str) -> None:
 # ── Available Services / Data Centers ─────────────────────────────────────────
 
 def list_available_environments(subaccount_guid: str) -> List[Dict]:
-    result = _run(["list", "accounts/available-environments", "--subaccount", subaccount_guid])
+    result = _run(["list", "accounts/available-environment", "--subaccount", subaccount_guid])
     return result if isinstance(result, list) else result.get("availableEnvironments", [])
 
 
 def list_available_regions() -> List[Dict]:
-    result = _run(["list", "accounts/available-regions"])
+    result = _run(["list", "accounts/available-region"])
     return result if isinstance(result, list) else result.get("datacenters", [])
+
+
+# ── Security: Role Collections ─────────────────────────────────────────────────
+
+def list_role_collections(subaccount_guid: str) -> List[Dict]:
+    result = _run(["list", "security/role-collection", "--subaccount", subaccount_guid])
+    return result if isinstance(result, list) else result.get("value", [])
+
+
+def get_role_collection(name: str, subaccount_guid: str) -> Dict:
+    return _run(["get", "security/role-collection", name, "--subaccount", subaccount_guid])
+
+
+def create_role_collection(name: str, description: str = "", subaccount_guid: str = None) -> Dict:
+    args = ["create", "security/role-collection", name]
+    if description:
+        args += ["--description", description]
+    if subaccount_guid:
+        args += ["--subaccount", subaccount_guid]
+    return _run(args)
+
+
+def update_role_collection(name: str, description: str, subaccount_guid: str) -> Dict:
+    return _run([
+        "update", "security/role-collection", name,
+        "--description", description,
+        "--subaccount", subaccount_guid,
+    ])
+
+
+def delete_role_collection(name: str, subaccount_guid: str) -> None:
+    _run(["delete", "security/role-collection", name, "--subaccount", subaccount_guid, "--confirm"])
+
+
+def add_role_to_collection(
+    role_name: str,
+    role_template_name: str,
+    app_id: str,
+    collection_name: str,
+    subaccount_guid: str,
+) -> None:
+    _run([
+        "add", "security/role", role_name,
+        "--to-role-collection", collection_name,
+        "--of-app", app_id,
+        "--of-role-template", role_template_name,
+        "--subaccount", subaccount_guid,
+    ])
+
+
+def remove_role_from_collection(
+    role_name: str,
+    role_template_name: str,
+    app_id: str,
+    collection_name: str,
+    subaccount_guid: str,
+) -> None:
+    _run([
+        "remove", "security/role", role_name,
+        "--from-role-collection", collection_name,
+        "--of-app", app_id,
+        "--of-role-template", role_template_name,
+        "--subaccount", subaccount_guid,
+    ])
+
+
+def assign_user_to_collection(
+    collection_name: str,
+    user_email: str,
+    subaccount_guid: str,
+    origin: str = "sap.default",
+) -> None:
+    _run([
+        "assign", "security/role-collection", collection_name,
+        "--to-user", user_email,
+        "--of-idp", origin,
+        "--subaccount", subaccount_guid,
+    ])
+
+
+def unassign_user_from_collection(
+    collection_name: str,
+    user_email: str,
+    subaccount_guid: str,
+    origin: str = "sap.default",
+) -> None:
+    _run([
+        "unassign", "security/role-collection", collection_name,
+        "--from-user", user_email,
+        "--of-idp", origin,
+        "--subaccount", subaccount_guid,
+    ])
+
+
+# ── Security: Roles ───────────────────────────────────────────────────────────
+
+def list_roles(subaccount_guid: str) -> List[Dict]:
+    result = _run(["list", "security/role", "--subaccount", subaccount_guid])
+    return result if isinstance(result, list) else result.get("value", [])
+
+
+def create_role(
+    name: str,
+    role_template_name: str,
+    app_id: str,
+    description: str = "",
+    subaccount_guid: str = None,
+) -> Dict:
+    args = [
+        "create", "security/role", name,
+        "--of-app", app_id,
+        "--of-role-template", role_template_name,
+    ]
+    if description:
+        args += ["--description", description]
+    if subaccount_guid:
+        args += ["--subaccount", subaccount_guid]
+    return _run(args)
+
+
+def delete_role(
+    name: str,
+    role_template_name: str,
+    app_id: str,
+    subaccount_guid: str,
+) -> None:
+    _run([
+        "delete", "security/role", name,
+        "--of-app", app_id,
+        "--of-role-template", role_template_name,
+        "--subaccount", subaccount_guid,
+        "--confirm",
+    ])
+
+
+# ── Security: Apps and Users ──────────────────────────────────────────────────
+
+def list_apps(subaccount_guid: str) -> List[Dict]:
+    result = _run(["list", "security/app", "--subaccount", subaccount_guid])
+    return result if isinstance(result, list) else result.get("value", [])
+
+
+def list_users(subaccount_guid: str) -> List[str]:
+    result = _run(["list", "security/user", "--subaccount", subaccount_guid])
+    return result if isinstance(result, list) else result.get("value", [])
+
+
+# ── Services (CF service marketplace) ────────────────────────────────────────
+
+def list_service_offerings(subaccount_guid: str) -> List[Dict]:
+    result = _run(["list", "services/offering", "--subaccount", subaccount_guid])
+    return result if isinstance(result, list) else result.get("value", [])
+
+
+def list_service_instances(subaccount_guid: str) -> List[Dict]:
+    result = _run(["list", "services/instance", "--subaccount", subaccount_guid])
+    return result if isinstance(result, list) else result.get("value", [])
+
+
+def list_service_plans(subaccount_guid: str, offering_name: str = None) -> List[Dict]:
+    args = ["list", "services/plan", "--subaccount", subaccount_guid]
+    if offering_name:
+        args += ["--offering-name", offering_name]
+    result = _run(args)
+    return result if isinstance(result, list) else result.get("value", [])
