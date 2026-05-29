@@ -99,7 +99,6 @@ def create_subaccount(
         args += ["--beta-enabled", "true"]
     if parent_guid:
         args += ["--parent-directory", parent_guid]
-    args += ["--confirm"]
     return _run(args)
 
 
@@ -109,7 +108,6 @@ def update_subaccount(guid: str, display_name: str = None, description: str = No
         args += ["--display-name", display_name]
     if description:
         args += ["--description", description]
-    args += ["--confirm"]
     return _run(args)
 
 
@@ -138,7 +136,6 @@ def create_directory(display_name: str, description: str = "", parent_guid: str 
         args += ["--description", description]
     if parent_guid:
         args += ["--parent-directory", parent_guid]
-    args += ["--confirm"]
     return _run(args)
 
 
@@ -148,12 +145,11 @@ def update_directory(guid: str, display_name: str = None, description: str = Non
         args += ["--display-name", display_name]
     if description:
         args += ["--description", description]
-    args += ["--confirm"]
     return _run(args)
 
 
 def delete_directory(guid: str) -> None:
-    _run(["delete", "accounts/directory", guid, "--confirm"])
+    _run(["delete", "accounts/directory", guid])
 
 
 # ── Entitlements ────────────────────────────────────────────────────────────────
@@ -186,7 +182,6 @@ def assign_entitlement(
         args += ["--amount", str(amount)]
     else:
         args += ["--enable"]
-    args += ["--confirm"]
     _run(args)
 
 
@@ -196,7 +191,6 @@ def unassign_entitlement(subaccount_guid: str, service_name: str, plan_name: str
         "--from-subaccount", subaccount_guid,
         "--for-service", service_name,
         "--plan", plan_name,
-        "--confirm",
     ])
 
 
@@ -229,7 +223,6 @@ def create_environment_instance(
     ]
     if landscape_label:
         args += ["--landscape-label", landscape_label]
-    args += ["--confirm"]
     return _run(args)
 
 
@@ -237,7 +230,6 @@ def delete_environment_instance(subaccount_guid: str, instance_id: str) -> None:
     _run([
         "delete", "accounts/environment-instance", instance_id,
         "--subaccount", subaccount_guid,
-        "--confirm",
     ])
 
 
@@ -282,7 +274,7 @@ def update_role_collection(name: str, description: str, subaccount_guid: str) ->
 
 
 def delete_role_collection(name: str, subaccount_guid: str) -> None:
-    _run(["delete", "security/role-collection", name, "--subaccount", subaccount_guid, "--confirm"])
+    _run(["delete", "security/role-collection", name, "--subaccount", subaccount_guid])
 
 
 def add_role_to_collection(
@@ -382,7 +374,6 @@ def delete_role(
         "--of-app", app_id,
         "--of-role-template", role_template_name,
         "--subaccount", subaccount_guid,
-        "--confirm",
     ])
 
 
@@ -411,8 +402,8 @@ def list_service_instances(subaccount_guid: str) -> List[Dict]:
 
 
 def list_service_plans(subaccount_guid: str, offering_name: str = None) -> List[Dict]:
-    args = ["list", "services/plan", "--subaccount", subaccount_guid]
+    result = _run(["list", "services/plan", "--subaccount", subaccount_guid])
+    items = result if isinstance(result, list) else result.get("items", result.get("value", []))
     if offering_name:
-        args += ["--offering-name", offering_name]
-    result = _run(args)
-    return result if isinstance(result, list) else result.get("value", [])
+        items = [p for p in items if p.get("service_offering_name", "").lower() == offering_name.lower()]
+    return items

@@ -219,8 +219,13 @@ def list_entitlements(ctx, subaccount, service):
     try:
         svc = EntitlementsService(_client())
         data = svc.list_assignments(subaccount_guid=subaccount, service_name=service)
-        _print(data, ctx.obj["fmt"], "Entitlements",
-               columns=["name", "displayName", "servicePlans"])
+        # Subaccount-filtered response uses {service, plan, quota} fields
+        # Global response uses {name, displayName, servicePlans}
+        if subaccount and data and "service" in (data[0] if data else {}):
+            cols = ["service", "plan", "quota", "unlimited"]
+        else:
+            cols = ["name", "displayName"]
+        _print(data, ctx.obj["fmt"], "Entitlements", columns=cols)
     except BTPError as e:
         out.error(str(e))
         sys.exit(1)
