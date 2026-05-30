@@ -48,17 +48,17 @@ Python automation framework covering every layer of SAP Business Technology Plat
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         Entry Points                                │
 │                                                                     │
-│  btp_cli.py      btp_api.py          btp_mcp_server.py             │
-│  (TUI + CLI)     (FastAPI REST)      (46 MCP tools for AI)         │
+│  btp_cli.py      btp_api.py          btp_mcp_server.py              │
+│  (TUI + CLI)     (FastAPI REST)      (46 MCP tools for AI)          │
 │       │               │                      │                      │
 │       └───────────────┴──────────────────────┘                      │
-│                               │                                     │
-│                    btp/ Python Service Layer                        │
-│  ┌──────────┐ ┌────────────┐ ┌──────────┐ ┌──────────────────────┐ │
-│  │accounts  │ │entitlements│ │services  │ │destinations          │ │
-│  │provision │ │authorizat. │ │btp_cli   │ │integration_suite     │ │
-│  └────┬─────┘ └─────┬──────┘ └────┬─────┘ └──────────┬───────────┘ │
-└───────┼─────────────┼─────────────┼──────────────────┼─────────────┘
+│                       │                                             │
+│                 btp/ Python Service Layer                           │
+│  ┌──────────┐ ┌────────────┐ ┌──────────┐ ┌──────────────────────┐  │
+│  │accounts  │ │entitlements│ │services  │ │destinations          │  │
+│  │provision │ │authorizat. │ │btp_cli   │ │integration_suite     │  │
+│  └────┬─────┘ └─────┬──────┘ └────┬─────┘ └──────────┬───────────┘  │
+└───────┼─────────────┼─────────────┼──────────────────┼──────────────┘
         │             │             │                  │
    BTP CLI      OAuth2 REST    BTP CLI +           REST APIs
   subprocess     (XSUAA)     CF CLI subprocess   (Destination Svc
