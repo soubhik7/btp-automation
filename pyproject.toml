@@ -16,6 +16,10 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "click>=8.1.0",
     "rich>=13.0.0",
+    # Web API + MCP server
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+    "mcp>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -30,14 +34,16 @@ dev = [
 ]
 
 [project.scripts]
-btp-auto = "btp_cli:cli"
+btp-auto     = "btp_cli:cli"
+btp-api      = "btp_api:app"
+btp-mcp      = "btp_mcp_server:mcp"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["btp*"]
+include = ["btp*", "btp_web*"]
 
 [tool.setuptools]
-py-modules = ["btp_cli"]
+py-modules = ["btp_cli", "btp_api", "btp_mcp_server"]
 
 [tool.setuptools.package-data]
 "btp" = ["py.typed"]
