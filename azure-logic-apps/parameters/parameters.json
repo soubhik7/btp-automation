@@ -1,0 +1,38 @@
+{
+  "subaccountManagementUrl": {
+    "type": "String",
+    "value": ""
+  },
+  "entitlementsManagementUrl": {
+    "type": "String",
+    "value": ""
+  },
+  "provisioningManagementUrl": {
+    "type": "String",
+    "value": ""
+  },
+  "authorizationManagementUrl": {
+    "type": "String",
+    "value": ""
+  },
+  "destinationsManagementUrl": {
+    "type": "String",
+    "value": ""
+  },
+  "btp-mainOrchestratorUrl": {
+    "type": "String",
+    "value": ""
+  },
+  "defaultAccountsServiceUrl": {
+    "type": "String",
+    "value": "https://accounts-service.cfapps.eu10.hana.ondemand.com"
+  },
+  "defaultEntitlementsServiceUrl": {
+    "type": "String",
+    "value": "https://entitlements-service.cfapps.eu10.hana.ondemand.com"
+  },
+  "defaultProvisioningServiceUrl": {
+    "type": "String",
+    "value": "https://provisioning-service.cfapps.eu10.hana.ondemand.com"
+  }
+}
