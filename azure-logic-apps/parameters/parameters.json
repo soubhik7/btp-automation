@@ -1,27 +1,27 @@
 {
   "subaccountManagementUrl": {
     "type": "String",
-    "value": ""
+    "value": "https://btp-automation-dev.azurewebsites.net/api/subaccount-management/triggers/manual/invoke?api-version=2022-05-01"
   },
   "entitlementsManagementUrl": {
     "type": "String",
-    "value": ""
+    "value": "https://btp-automation-dev.azurewebsites.net/api/entitlements-management/triggers/manual/invoke?api-version=2022-05-01"
   },
   "provisioningManagementUrl": {
     "type": "String",
-    "value": ""
+    "value": "https://btp-automation-dev.azurewebsites.net/api/provisioning-management/triggers/manual/invoke?api-version=2022-05-01"
   },
   "authorizationManagementUrl": {
     "type": "String",
-    "value": ""
+    "value": "https://btp-automation-dev.azurewebsites.net/api/authorization-management/triggers/manual/invoke?api-version=2022-05-01"
   },
   "destinationsManagementUrl": {
     "type": "String",
-    "value": ""
+    "value": "https://btp-automation-dev.azurewebsites.net/api/destinations-management/triggers/manual/invoke?api-version=2022-05-01"
   },
-  "btp-mainOrchestratorUrl": {
+  "mainOrchestratorUrl": {
     "type": "String",
-    "value": ""
+    "value": "https://btp-automation-dev.azurewebsites.net/api/main-orchestrator/triggers/manual/invoke?api-version=2022-05-01"
   },
   "defaultAccountsServiceUrl": {
     "type": "String",

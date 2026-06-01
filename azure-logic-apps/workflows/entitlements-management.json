@@ -75,10 +75,16 @@
         "runAfter": { "Get_CIS_Token": ["Succeeded"] }
       },
 
+      "Initialize_BulkServicePlans": {
+        "type": "InitializeVariable",
+        "inputs": { "variables": [{ "name": "bulkServicePlans", "type": "array", "value": [] }] },
+        "runAfter": { "Set_EntitlementsBaseUrl": ["Succeeded"] }
+      },
+
       "Switch_By_Action": {
         "type": "Switch",
         "expression": "@triggerBody()?['action']",
-        "runAfter": { "Set_EntitlementsBaseUrl": ["Succeeded"] },
+        "runAfter": { "Initialize_BulkServicePlans": ["Succeeded"] },
 
         "cases": {
 
@@ -177,11 +183,6 @@
           "Case_BulkAssign": {
             "case": "bulkAssign",
             "actions": {
-              "Initialize_BulkAssign_ServicePlans": {
-                "type": "InitializeVariable",
-                "inputs": { "variables": [{ "name": "bulkServicePlans", "type": "array", "value": [] }] },
-                "runAfter": {}
-              },
               "Build_ServicePlans_Array": {
                 "type": "Select",
                 "inputs": {
@@ -195,7 +196,7 @@
                     }]
                   }
                 },
-                "runAfter": { "Initialize_BulkAssign_ServicePlans": ["Succeeded"] }
+                "runAfter": {}
               },
               "HTTP_BulkAssign_Entitlements": {
                 "type": "Http", "runAfter": { "Build_ServicePlans_Array": ["Succeeded"] },
