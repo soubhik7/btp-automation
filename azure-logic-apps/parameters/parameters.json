@@ -1,27 +1,27 @@
 {
   "subaccountManagementUrl": {
     "type": "String",
-    "value": "https://btp-automation-dev.azurewebsites.net/api/subaccount-management/triggers/manual/invoke?api-version=2022-05-01"
+    "value": "https://btp-automation-dev.azurewebsites.net/api/wf-btp-automation-subaccount-management/triggers/manual/invoke?api-version=2022-05-01"
   },
   "entitlementsManagementUrl": {
     "type": "String",
-    "value": "https://btp-automation-dev.azurewebsites.net/api/entitlements-management/triggers/manual/invoke?api-version=2022-05-01"
+    "value": "https://btp-automation-dev.azurewebsites.net/api/wf-btp-automation-entitlements-management/triggers/manual/invoke?api-version=2022-05-01"
   },
   "provisioningManagementUrl": {
     "type": "String",
-    "value": "https://btp-automation-dev.azurewebsites.net/api/provisioning-management/triggers/manual/invoke?api-version=2022-05-01"
+    "value": "https://btp-automation-dev.azurewebsites.net/api/wf-btp-automation-provisioning-management/triggers/manual/invoke?api-version=2022-05-01"
   },
   "authorizationManagementUrl": {
     "type": "String",
-    "value": "https://btp-automation-dev.azurewebsites.net/api/authorization-management/triggers/manual/invoke?api-version=2022-05-01"
+    "value": "https://btp-automation-dev.azurewebsites.net/api/wf-btp-automation-authorization-management/triggers/manual/invoke?api-version=2022-05-01"
   },
   "destinationsManagementUrl": {
     "type": "String",
-    "value": "https://btp-automation-dev.azurewebsites.net/api/destinations-management/triggers/manual/invoke?api-version=2022-05-01"
+    "value": "https://btp-automation-dev.azurewebsites.net/api/wf-btp-automation-destinations-management/triggers/manual/invoke?api-version=2022-05-01"
   },
   "mainOrchestratorUrl": {
     "type": "String",
-    "value": "https://btp-automation-dev.azurewebsites.net/api/main-orchestrator/triggers/manual/invoke?api-version=2022-05-01"
+    "value": "https://btp-automation-dev.azurewebsites.net/api/wf-btp-automation-main-orchestrator/triggers/manual/invoke?api-version=2022-05-01"
   },
   "defaultAccountsServiceUrl": {
     "type": "String",
